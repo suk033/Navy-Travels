@@ -1,0 +1,10 @@
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.log
+
+# Local planning and assistant metadata
+.atl/
+Idea del Proyecto/
