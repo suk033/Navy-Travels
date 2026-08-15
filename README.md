@@ -73,4 +73,9 @@ Esta entrega está identificada mediante el tag [`v1.0.0`](https://github.com/su
 
 ## Autor
 
-Proyecto académico desarrollado como práctica de frontend, control de versiones y buenas prácticas con Git y GitHub.
+Proyecto académico desarrollado como práctica de frontend, control de versiones y buenas prácticas con Git y GitHub por:
+
+- Bernny Santos Danfer Gordillo Vallejos
+- Jimmy Andres Padilla Lopez
+- Braulio Jesus Javier Buendia
+- Hedy Denilson Perez Unocc
