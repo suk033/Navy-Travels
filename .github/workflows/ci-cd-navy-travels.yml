@@ -120,6 +120,9 @@ jobs:
     needs: ci
     # Condición: solo ejecutar en push a main (no en pull_request)
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Permiso de escritura necesario para hacer push a la rama 'gh-pages'
+    permissions:
+      contents: write
     steps:
       # 1) Descargar el código (la rama main ya contiene los cambios)
       - name: Checkout del repositorio
