@@ -1,0 +1,140 @@
+# ============================================================================
+# CI/CD Navy Travels
+# ============================================================================
+# CI (push y pull_request a main): Validación ligera del sitio estático
+#   - Verifica que index.html, styles.css y script.js existan
+#   - Inicia un servidor HTTP estático y confirma respuestas HTTP 200
+#   - Verifica sintaxis de los archivos (node --check para JS)
+# CD (push ÚNICAMENTE a main): Despliegue a GitHub Pages
+# ============================================================================
+name: CI/CD Navy Travels
+
+# Eventos que disparan el workflow:
+# - push: únicamente cuando se sube a la rama main
+# - pull_request: cuando se abre o actualiza un PR contra main
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Permisos mínimos requeridos:
+# - contents: leer el repositorio
+# - pages + id-token: necesarios para el despliegue a GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  # =========================================================================
+  # CI — Validación de calidad del sitio estático
+  # Se ejecuta en push y pull_request (todas las ramas)
+  # =========================================================================
+  ci:
+    name: CI — Validación del sitio
+    runs-on: ubuntu-latest
+    steps:
+      # 1) Descargar el código del repositorio
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      # 2) Instalar Node.js (necesario para 'node --check' de la sintaxis JS)
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # 3) Verificar que index.html exista (prueba de integridad básica)
+      - name: Verificar que index.html existe
+        run: |
+          if [ ! -f index.html ]; then
+            echo "❌ Archivo index.html no encontrado"
+            exit 1
+          fi
+          echo "✅ index.html existe"
+
+      # 4) Iniciar servidor HTTP estático (python3 -m http.server)
+      #    Se ejecuta en segundo plano (&) para que el paso siguiente pueda usarlo.
+      - name: Iniciar servidor estático
+        run: python3 -m http.server 8000 &
+        shell: bash
+
+      # 5) Esperar a que el servidor responda (polling de hasta 20 segundos)
+      - name: Verificar que el servidor responde (HTTP 200)
+        run: |
+          for i in {1..20}; do
+            if curl -fsS http://localhost:8000/index.html; then
+              echo "✅ Servidor respondiendo en http://localhost:8000"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "❌ El servidor no respondió en 20 segundos"
+          exit 1
+
+      # 6) Verificar que los recursos (CSS y JS) también se sirven correctamente
+      - name: Verificar respuestas HTTP 200 para recursos
+        run: |
+          curl -fsS http://localhost:8000/styles.css > /dev/null
+          curl -fsS http://localhost:8000/script.js > /dev/null
+          echo "✅ styles.css y script.js responden HTTP 200"
+
+      # 7) Revisar sintaxis de los archivos JavaScript (node --check)
+      - name: Verificar sintaxis de JS
+        run: |
+          if [ -f script.js ]; then
+            node --check script.js
+            echo "✅ script.js: sintaxis válida"
+          fi
+
+      # 8) Verificar que styles.css no esté vacío (validación mínima de CSS)
+      - name: Verificar que styles.css no está vacío
+        run: |
+          if [ -f styles.css ]; then
+            if [ -s styles.css ]; then
+              echo "✅ styles.css: no está vacío"
+            else
+              echo "❌ styles.css: está vacío"
+              exit 1
+            fi
+          fi
+
+      # 9) Detener el servidor (si el workflow falla, el 'if: always()' asegura
+      #    que se ejecute este paso también)
+      - name: Detener servidor
+        if: always()
+        run: pkill -f "http.server 8000" || true
+
+  # =========================================================================
+  # CD — Despliegue a GitHub Pages
+  # Se ejecuta ÚNICAMENTE cuando:
+  #   - El evento es 'push' (no 'pull_request')
+  #   - La rama destino es 'refs/heads/main'
+  # Y SOLO si el job 'ci' terminó correctamente (needs: ci)
+  # =========================================================================
+  deploy:
+    name: CD — Despliegue a GitHub Pages
+    runs-on: ubuntu-latest
+    # Depender del job 'ci' para que el despliegue no ocurra si las pruebas fallan
+    needs: ci
+    # Condición: solo ejecutar en push a main (no en pull_request)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      # 1) Descargar el código (la rama main ya contiene los cambios)
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      # 2) Desplegar el contenido de 'publish_dir' a la rama 'gh-pages'
+      - name: Desplegar a GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          # El token automático de GitHub Actions (no requiere configuración
+          # manual de secretos).
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Directorio a publicar: el contenido raíz del repositorio
+          publish_dir: ./
+          # Rama destino: 'gh-pages' (la rama que usa GitHub Pages)
+          publish_branch: gh-pages
+          # Forzar la creación de la rama gh-pages con un historial limpio
+          force_orphan: true
